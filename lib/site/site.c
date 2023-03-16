@@ -1,4 +1,6 @@
 #include "site.h"
+#include "ap.h"
+#include "cJSON.h"
 
 const char *TAG_SITE = "SITE";
 
@@ -83,7 +85,7 @@ const httpd_uri_t hello = {
     .handler   = hello_get_handler,
     /* Let's pass response string in user
      * context to demonstrate it's usage */
-    .user_ctx  = "Hello World!"
+    .user_ctx  = INDEX_HTML
 };
 
 /* An HTTP POST handler */
@@ -107,10 +109,24 @@ esp_err_t echo_post_handler(httpd_req_t *req)
         httpd_resp_send_chunk(req, buf, ret);
         remaining -= ret;
 
+        cJSON* root = cJSON_Parse(buf);
+        char* ssid = NULL;
+        char* password = NULL;
+        if (cJSON_GetObjectItem(root, "ssid")) {
+            ssid = cJSON_GetObjectItem(root, "ssid")->valuestring;
+        }
+        if (cJSON_GetObjectItem(root, "password")) {
+            password = cJSON_GetObjectItem(root, "password")->valuestring;
+        }
+
         /* Log data received */
         ESP_LOGI(TAG_SITE, "=========== RECEIVED DATA ==========");
         ESP_LOGI(TAG_SITE, "%.*s", ret, buf);
         ESP_LOGI(TAG_SITE, "====================================");
+
+        if (ssid != NULL && password != NULL) {
+            connect_to_wifi(ssid, password);
+        }
     }
 
     // End response
@@ -152,49 +168,6 @@ esp_err_t http_404_error_handler(httpd_req_t *req, httpd_err_code_t err)
     return ESP_FAIL;
 }
 
-/* An HTTP PUT handler. This demonstrates realtime
- * registration and deregistration of URI handlers
- */
-esp_err_t ctrl_put_handler(httpd_req_t *req)
-{
-    char buf;
-    int ret;
-
-    if ((ret = httpd_req_recv(req, &buf, 1)) <= 0) {
-        if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
-            httpd_resp_send_408(req);
-        }
-        return ESP_FAIL;
-    }
-
-    if (buf == '0') {
-        /* URI handlers can be unregistered using the uri string */
-        ESP_LOGI(TAG_SITE, "Unregistering /hello and /echo URIs");
-        httpd_unregister_uri(req->handle, "/hello");
-        httpd_unregister_uri(req->handle, "/echo");
-        /* Register the custom error handler */
-        httpd_register_err_handler(req->handle, HTTPD_404_NOT_FOUND, http_404_error_handler);
-    }
-    else {
-        ESP_LOGI(TAG_SITE, "Registering /hello and /echo URIs");
-        httpd_register_uri_handler(req->handle, &hello);
-        httpd_register_uri_handler(req->handle, &echo);
-        /* Unregister custom error handler */
-        httpd_register_err_handler(req->handle, HTTPD_404_NOT_FOUND, NULL);
-    }
-
-    /* Respond with empty body */
-    httpd_resp_send(req, NULL, 0);
-    return ESP_OK;
-}
-
-const httpd_uri_t ctrl = {
-    .uri       = "/ctrl",
-    .method    = HTTP_PUT,
-    .handler   = ctrl_put_handler,
-    .user_ctx  = NULL
-};
-
 httpd_handle_t start_webserver(void)
 {
     httpd_handle_t server = NULL;
@@ -208,10 +181,6 @@ httpd_handle_t start_webserver(void)
         ESP_LOGI(TAG_SITE, "Registering URI handlers");
         httpd_register_uri_handler(server, &hello);
         httpd_register_uri_handler(server, &echo);
-        httpd_register_uri_handler(server, &ctrl);
-        #if CONFIG_EXAMPLE_BASIC_AUTH
-        httpd_register_basic_auth(server);
-        #endif
         return server;
     }
 
@@ -223,20 +192,6 @@ esp_err_t stop_webserver(httpd_handle_t server)
 {
     // Stop the httpd server
     return httpd_stop(server);
-}
-
-void disconnect_handler(void* arg, esp_event_base_t event_base,
-                               int32_t event_id, void* event_data)
-{
-    httpd_handle_t* server = (httpd_handle_t*) arg;
-    if (*server) {
-        ESP_LOGI(TAG_SITE, "Stopping webserver");
-        if (stop_webserver(*server) == ESP_OK) {
-            *server = NULL;
-        } else {
-            ESP_LOGE(TAG_SITE, "Failed to stop http server");
-        }
-    }
 }
 
 void connect_handler(void* arg, esp_event_base_t event_base,
@@ -257,7 +212,6 @@ void start_site(void)
      * and re-start it upon connection.
      */
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &connect_handler, &server));
-    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, &disconnect_handler, &server));
 
     /* Start the server for the first time */
     server = start_webserver();
