@@ -1,8 +1,8 @@
 #include "site.h"
-#include "sta.h"
+#include "ap.h"
 
 void app_main(void)
 {
-    start_sta();
+    start_ap();
     start_site();
 }

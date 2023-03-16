@@ -1,5 +1,5 @@
-#ifndef STA_H
-#define STA_H
+#ifndef AP_H
+#define AP_H
 
 /*  WiFi softAP Example
 
@@ -34,6 +34,6 @@
 void wifi_event_handler(void* arg, esp_event_base_t event_base,
                                     int32_t event_id, void* event_data);
 void wifi_init_softap(void);
-void start_sta(void);
+void start_ap(void);
 
-#endif // STA_H
+#endif // AP_H
