@@ -21,5 +21,9 @@ jobs:
       - name: Archive firmware
         uses: actions/upload-artifact@v3
         with:
-          name: firmware.bin
-          path: .pio/build/esp32dev/firmware.bin
+          name: WebSTA-AP_Firmware
+          path: |
+            .pio/build/esp32dev/firmware.bin
+            .pio/build/esp32dev/bootloader.bin
+            .pio/build/esp32dev/ota_data_initial.bin
+            .pio/build/esp32dev/partitions.bin
