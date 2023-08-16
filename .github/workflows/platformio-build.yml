@@ -4,11 +4,17 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-      - name: PlatformIO Run
-        uses: karniv00l/platformio-run-action@v1
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
         with:
-          silent: false
-          verbose: true
-          disable-auto-clean: false
+          path: |
+            ~/.cache/pip
+            ~/.platformio/.cache
+          key: ${{ runner.os }}-pio
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Install PlatformIO Core
+        run: pip install --upgrade platformio
+      - name: Build PlatformIO Project
+        run: pio run
